@@ -58,3 +58,13 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+table {
+  border-collapse: collapse;
+  margin-top: 1em;
+}
+table th,
+table td {
+  padding: 0.5em 1em;
+  border: 1px solid #e0e0e0;
+}
