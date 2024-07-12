@@ -393,7 +393,7 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Storage Performance Test</h1>
+      <h1>Storage Performance Tests</h1>
       <p>Read/write a 100MB file and 100 x 1KB files using the Cache API, IndexedDB, and OPFS (both the async main thread API, and the sync worker API)</p>
       <button onClick={runTests}>Run Tests</button>
       <table>
