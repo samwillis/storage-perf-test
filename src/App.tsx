@@ -1,23 +1,26 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 function App() {
   const [results, setResults] = useState<any>({});
   const [worker, setWorker] = useState<Worker | null>(null);
 
   useEffect(() => {
-    const newWorker = new Worker(new URL('./opfsWorker.ts', import.meta.url));
+    const newWorker = new Worker(new URL("./opfsWorker.ts", import.meta.url));
     newWorker.onmessage = (event) => {
       const { writeTime, readTime, singleFileTest, error } = event.data;
       if (error) {
         console.error("Worker error:", error);
       } else {
-        const testType = singleFileTest ? 'singleFile' : 'multipleFiles';
-        setResults(prevResults => ({
+        const testType = singleFileTest ? "singleFile" : "multipleFiles";
+        setResults((prevResults: any) => ({
           ...prevResults,
-          ['OPFS Sync']: {
-            ...prevResults['OPFS Sync'],
-            [testType]: { writeTime: writeTime.toFixed(2), readTime: readTime.toFixed(2) }
-          }
+          ["OPFS Sync"]: {
+            ...prevResults["OPFS Sync"],
+            [testType]: {
+              writeTime: writeTime.toFixed(2),
+              readTime: readTime.toFixed(2),
+            },
+          },
         }));
       }
     };
@@ -54,7 +57,9 @@ function App() {
   const saveToOPFS = async (file: Blob): Promise<number> => {
     // @ts-ignore: 'navigator.storage.getDirectory' might not be available in TypeScript types
     const rootDir = await navigator.storage.getDirectory();
-    const opfsFile = await rootDir.getFileHandle("opfsTestFile", { create: true });
+    const opfsFile = await rootDir.getFileHandle("opfsTestFile", {
+      create: true,
+    });
     const writable = await opfsFile.createWritable();
     const start = performance.now();
     await writable.write(file);
@@ -64,11 +69,13 @@ function App() {
   };
 
   const saveMultipleToOPFS = async (files: Blob[]): Promise<number> => {
-    const times = [];
+    const times: number[] = [];
     for (let i = 0; i < files.length; i++) {
       // @ts-ignore: 'navigator.storage.getDirectory' might not be available in TypeScript types
       const rootDir = await navigator.storage.getDirectory();
-      const opfsFile = await rootDir.getFileHandle(`opfsTestFile_${i}`, { create: true });
+      const opfsFile = await rootDir.getFileHandle(`opfsTestFile_${i}`, {
+        create: true,
+      });
       const writable = await opfsFile.createWritable();
       const start = performance.now();
       await writable.write(files[i]);
@@ -89,7 +96,7 @@ function App() {
 
   const saveMultipleToCache = async (files: Blob[]): Promise<number> => {
     const cache = await caches.open("cacheTest");
-    const times = [];
+    const times: number[] = [];
     for (let i = 0; i < files.length; i++) {
       const start = performance.now();
       await cache.put(`/cacheTestFile_${i}`, new Response(files[i]));
@@ -143,7 +150,7 @@ function App() {
       }
     };
 
-    const times = [];
+    const times: number[] = [];
     await new Promise<void>((resolve, reject) => {
       dbOpenRequest.onsuccess = function () {
         const db = dbOpenRequest.result;
@@ -192,7 +199,7 @@ function App() {
   };
 
   const readMultipleFromOPFS = async (): Promise<number> => {
-    const times = [];
+    const times: number[] = [];
     for (let i = 0; i < 100; i++) {
       // @ts-ignore: 'navigator.storage.getDirectory' might not be available in TypeScript types
       const rootDir = await navigator.storage.getDirectory();
@@ -225,7 +232,7 @@ function App() {
 
   const readMultipleFromCache = async (): Promise<number> => {
     const cache = await caches.open("cacheTest");
-    const times = [];
+    const times: number[] = [];
     for (let i = 0; i < 100; i++) {
       const response = await cache.match(`/cacheTestFile_${i}`);
       if (!response) {
@@ -280,7 +287,7 @@ function App() {
   const readMultipleFromIndexedDB = async (): Promise<number> => {
     const dbOpenRequest = indexedDB.open("indexedDBTest", 1);
 
-    const times = [];
+    const times: number[] = [];
     return new Promise<number>((resolve, reject) => {
       dbOpenRequest.onsuccess = function () {
         const db = dbOpenRequest.result;
@@ -289,31 +296,37 @@ function App() {
 
         const readPromises = [];
         for (let i = 0; i < 100; i++) {
-          readPromises.push(new Promise<void>((resolveRead, rejectRead) => {
-            const start = performance.now();
-            const getRequest = store.get(`indexedDBTestFile_${i}`);
+          readPromises.push(
+            new Promise<void>((resolveRead, rejectRead) => {
+              const start = performance.now();
+              const getRequest = store.get(`indexedDBTestFile_${i}`);
 
-            getRequest.onsuccess = function () {
-              const file = getRequest.result;
-              if (!file) {
-                reject(new Error(`File not found in IndexedDB: indexedDBTestFile_${i}`));
-                return;
-              }
+              getRequest.onsuccess = function () {
+                const file = getRequest.result;
+                if (!file) {
+                  reject(
+                    new Error(
+                      `File not found in IndexedDB: indexedDBTestFile_${i}`
+                    )
+                  );
+                  return;
+                }
 
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const end = performance.now();
-                times.push(end - start);
-                resolveRead();
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const end = performance.now();
+                  times.push(end - start);
+                  resolveRead();
+                };
+                reader.onerror = () => rejectRead(reader.error);
+                reader.readAsArrayBuffer(file);
               };
-              reader.onerror = () => rejectRead(reader.error);
-              reader.readAsArrayBuffer(file);
-            };
 
-            getRequest.onerror = function () {
-              rejectRead(getRequest.error);
-            };
-          }));
+              getRequest.onerror = function () {
+                rejectRead(getRequest.error);
+              };
+            })
+          );
         }
 
         Promise.all(readPromises)
@@ -342,20 +355,29 @@ function App() {
     const opfsWriteTime = await saveToOPFS(file);
     const opfsReadTime = await readFromOPFS();
 
-    setResults(prevResults => ({
+    setResults((prevResults: any) => ({
       ...prevResults,
-      'Cache API': {
-        ...prevResults['Cache API'],
-        singleFile: { writeTime: cacheWriteTime.toFixed(2), readTime: cacheReadTime.toFixed(2) }
+      "Cache API": {
+        ...prevResults["Cache API"],
+        singleFile: {
+          writeTime: cacheWriteTime.toFixed(2),
+          readTime: cacheReadTime.toFixed(2),
+        },
       },
-      'IndexedDB': {
-        ...prevResults['IndexedDB'],
-        singleFile: { writeTime: indexedDBWriteTime.toFixed(2), readTime: indexedDBReadTime.toFixed(2) }
+      IndexedDB: {
+        ...prevResults["IndexedDB"],
+        singleFile: {
+          writeTime: indexedDBWriteTime.toFixed(2),
+          readTime: indexedDBReadTime.toFixed(2),
+        },
       },
-      'OPFS': {
-        ...prevResults['OPFS'],
-        singleFile: { writeTime: opfsWriteTime.toFixed(2), readTime: opfsReadTime.toFixed(2) }
-      }
+      OPFS: {
+        ...prevResults["OPFS"],
+        singleFile: {
+          writeTime: opfsWriteTime.toFixed(2),
+          readTime: opfsReadTime.toFixed(2),
+        },
+      },
     }));
 
     if (worker) {
@@ -370,20 +392,29 @@ function App() {
     const opfsMultipleWriteTime = await saveMultipleToOPFS(files);
     const opfsMultipleReadTime = await readMultipleFromOPFS();
 
-    setResults(prevResults => ({
+    setResults((prevResults: any) => ({
       ...prevResults,
-      'Cache API': {
-        ...prevResults['Cache API'],
-        multipleFiles: { writeTime: cacheMultipleWriteTime.toFixed(2), readTime: cacheMultipleReadTime.toFixed(2) }
+      "Cache API": {
+        ...prevResults["Cache API"],
+        multipleFiles: {
+          writeTime: cacheMultipleWriteTime.toFixed(2),
+          readTime: cacheMultipleReadTime.toFixed(2),
+        },
       },
-      'IndexedDB': {
-        ...prevResults['IndexedDB'],
-        multipleFiles: { writeTime: indexedDBMultipleWriteTime.toFixed(2), readTime: indexedDBMultipleReadTime.toFixed(2) }
+      IndexedDB: {
+        ...prevResults["IndexedDB"],
+        multipleFiles: {
+          writeTime: indexedDBMultipleWriteTime.toFixed(2),
+          readTime: indexedDBMultipleReadTime.toFixed(2),
+        },
       },
-      'OPFS': {
-        ...prevResults['OPFS'],
-        multipleFiles: { writeTime: opfsMultipleWriteTime.toFixed(2), readTime: opfsMultipleReadTime.toFixed(2) }
-      }
+      OPFS: {
+        ...prevResults["OPFS"],
+        multipleFiles: {
+          writeTime: opfsMultipleWriteTime.toFixed(2),
+          readTime: opfsMultipleReadTime.toFixed(2),
+        },
+      },
     }));
 
     if (worker) {
@@ -394,7 +425,11 @@ function App() {
   return (
     <div className="App">
       <h1>Storage Performance Tests</h1>
-      <p>Read/write a 100MB file and 100 x 1KB files using the Cache API, IndexedDB, and OPFS (both the async main thread API, and the sync worker API)</p>
+      <p>
+        Read/write a 100MB file and 100 x 1KB files using the Cache API,
+        IndexedDB, and OPFS (both the async main thread API, and the sync worker
+        API)
+      </p>
       <button onClick={runTests}>Run Tests</button>
       <table>
         <thead>
@@ -411,13 +446,13 @@ function App() {
           </tr>
         </thead>
         <tbody>
-          {['Cache API', 'IndexedDB', 'OPFS', 'OPFS Sync'].map(storage => (
+          {["Cache API", "IndexedDB", "OPFS", "OPFS Sync"].map((storage) => (
             <tr key={storage}>
               <td>{storage}</td>
-              <td>{results[storage]?.singleFile?.writeTime ?? 'N/A'}</td>
-              <td>{results[storage]?.singleFile?.readTime ?? 'N/A'}</td>
-              <td>{results[storage]?.multipleFiles?.writeTime ?? 'N/A'}</td>
-              <td>{results[storage]?.multipleFiles?.readTime ?? 'N/A'}</td>
+              <td>{results[storage]?.singleFile?.writeTime ?? "N/A"}</td>
+              <td>{results[storage]?.singleFile?.readTime ?? "N/A"}</td>
+              <td>{results[storage]?.multipleFiles?.writeTime ?? "N/A"}</td>
+              <td>{results[storage]?.multipleFiles?.readTime ?? "N/A"}</td>
             </tr>
           ))}
         </tbody>

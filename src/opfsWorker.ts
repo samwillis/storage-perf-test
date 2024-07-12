@@ -15,6 +15,7 @@ self.onmessage = async (event: MessageEvent) => {
 
       // Write the file using Sync Access Handle API
       const startWrite = performance.now();
+      // @ts-ignore: 'createSyncAccessHandle' might not be available in TypeScript types
       const syncHandle = await opfsFileHandle.createSyncAccessHandle();
       const buffer = await files[0].arrayBuffer();
       syncHandle.write(buffer);
@@ -24,6 +25,7 @@ self.onmessage = async (event: MessageEvent) => {
 
       // Read the file using Sync Access Handle API
       const startRead = performance.now();
+      // @ts-ignore: 'createSyncAccessHandle' might not be available in TypeScript types
       const readHandle = await opfsFileHandle.createSyncAccessHandle();
       const fileSize = readHandle.getSize();
       const readBuffer = new ArrayBuffer(fileSize);
@@ -37,6 +39,7 @@ self.onmessage = async (event: MessageEvent) => {
       const writeTimes = [];
       for (let i = 0; i < files.length; i++) {
         const fileHandle = await rootDir.getFileHandle(`opfsSyncTestFile_${i}`, { create: true });
+        // @ts-ignore: 'createSyncAccessHandle' might not be available in TypeScript types
         const syncHandle = await fileHandle.createSyncAccessHandle();
         const buffer = await files[i].arrayBuffer();
         const startWrite = performance.now();
@@ -49,6 +52,7 @@ self.onmessage = async (event: MessageEvent) => {
       const readTimes = [];
       for (let i = 0; i < files.length; i++) {
         const fileHandle = await rootDir.getFileHandle(`opfsSyncTestFile_${i}`);
+        // @ts-ignore: 'createSyncAccessHandle' might not be available in TypeScript types
         const syncHandle = await fileHandle.createSyncAccessHandle();
         const fileSize = syncHandle.getSize();
         const readBuffer = new ArrayBuffer(fileSize);
@@ -64,6 +68,6 @@ self.onmessage = async (event: MessageEvent) => {
       self.postMessage({ writeTime, readTime, singleFileTest: false });
     }
   } catch (error) {
-    self.postMessage({ error: error.message });
+    self.postMessage({ error: (error as Error).message });
   }
 };
