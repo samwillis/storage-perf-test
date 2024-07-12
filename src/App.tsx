@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 function App() {
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<any>({});
   const [worker, setWorker] = useState<Worker | null>(null);
 
   useEffect(() => {
@@ -11,11 +11,14 @@ function App() {
       if (error) {
         console.error("Worker error:", error);
       } else {
-        const testType = singleFileTest ? 'Single 100MB File' : '100 x 1KB Files';
-        setResults(prevResults => [
+        const testType = singleFileTest ? 'singleFile' : 'multipleFiles';
+        setResults(prevResults => ({
           ...prevResults,
-          { storage: 'OPFS Sync', type: testType, writeTime, readTime }
-        ]);
+          ['OPFS Sync']: {
+            ...prevResults['OPFS Sync'],
+            [testType]: { writeTime: writeTime.toFixed(2), readTime: readTime.toFixed(2) }
+          }
+        }));
       }
     };
     setWorker(newWorker);
@@ -284,33 +287,40 @@ function App() {
         const transaction = db.transaction("files", "readonly");
         const store = transaction.objectStore("files");
 
+        const readPromises = [];
         for (let i = 0; i < 100; i++) {
-          const start = performance.now();
-          const getRequest = store.get(`indexedDBTestFile_${i}`);
+          readPromises.push(new Promise<void>((resolveRead, rejectRead) => {
+            const start = performance.now();
+            const getRequest = store.get(`indexedDBTestFile_${i}`);
 
-          getRequest.onsuccess = function () {
-            const file = getRequest.result;
-            if (!file) {
-              reject(new Error(`File not found in IndexedDB: indexedDBTestFile_${i}`));
-              return;
-            }
-
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const end = performance.now();
-              times.push(end - start);
-              if (i === 99) {
-                resolve(times.reduce((a, b) => a + b, 0) / times.length);
+            getRequest.onsuccess = function () {
+              const file = getRequest.result;
+              if (!file) {
+                reject(new Error(`File not found in IndexedDB: indexedDBTestFile_${i}`));
+                return;
               }
-            };
-            reader.onerror = () => reject(reader.error);
-            reader.readAsArrayBuffer(file);
-          };
 
-          getRequest.onerror = function () {
-            reject(getRequest.error);
-          };
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const end = performance.now();
+                times.push(end - start);
+                resolveRead();
+              };
+              reader.onerror = () => rejectRead(reader.error);
+              reader.readAsArrayBuffer(file);
+            };
+
+            getRequest.onerror = function () {
+              rejectRead(getRequest.error);
+            };
+          }));
         }
+
+        Promise.all(readPromises)
+          .then(() => {
+            resolve(times.reduce((a, b) => a + b, 0) / times.length);
+          })
+          .catch(reject);
       };
 
       dbOpenRequest.onerror = function () {
@@ -320,8 +330,7 @@ function App() {
   };
 
   const runTests = async () => {
-    setResults([]);
-    
+    setResults({});
     const file = createFile(100);
     const files = createFiles(100, 1);
 
@@ -333,12 +342,21 @@ function App() {
     const opfsWriteTime = await saveToOPFS(file);
     const opfsReadTime = await readFromOPFS();
 
-    setResults(prevResults => [
+    setResults(prevResults => ({
       ...prevResults,
-      { storage: 'Cache API', type: 'Single 100MB File', writeTime: cacheWriteTime, readTime: cacheReadTime },
-      { storage: 'IndexedDB', type: 'Single 100MB File', writeTime: indexedDBWriteTime, readTime: indexedDBReadTime },
-      { storage: 'OPFS', type: 'Single 100MB File', writeTime: opfsWriteTime, readTime: opfsReadTime },
-    ]);
+      'Cache API': {
+        ...prevResults['Cache API'],
+        singleFile: { writeTime: cacheWriteTime.toFixed(2), readTime: cacheReadTime.toFixed(2) }
+      },
+      'IndexedDB': {
+        ...prevResults['IndexedDB'],
+        singleFile: { writeTime: indexedDBWriteTime.toFixed(2), readTime: indexedDBReadTime.toFixed(2) }
+      },
+      'OPFS': {
+        ...prevResults['OPFS'],
+        singleFile: { writeTime: opfsWriteTime.toFixed(2), readTime: opfsReadTime.toFixed(2) }
+      }
+    }));
 
     if (worker) {
       worker.postMessage({ files: [file], singleFileTest: true });
@@ -352,12 +370,21 @@ function App() {
     const opfsMultipleWriteTime = await saveMultipleToOPFS(files);
     const opfsMultipleReadTime = await readMultipleFromOPFS();
 
-    setResults(prevResults => [
+    setResults(prevResults => ({
       ...prevResults,
-      { storage: 'Cache API', type: '100 x 1KB Files', writeTime: cacheMultipleWriteTime, readTime: cacheMultipleReadTime },
-      { storage: 'IndexedDB', type: '100 x 1KB Files', writeTime: indexedDBMultipleWriteTime, readTime: indexedDBMultipleReadTime },
-      { storage: 'OPFS', type: '100 x 1KB Files', writeTime: opfsMultipleWriteTime, readTime: opfsMultipleReadTime },
-    ]);
+      'Cache API': {
+        ...prevResults['Cache API'],
+        multipleFiles: { writeTime: cacheMultipleWriteTime.toFixed(2), readTime: cacheMultipleReadTime.toFixed(2) }
+      },
+      'IndexedDB': {
+        ...prevResults['IndexedDB'],
+        multipleFiles: { writeTime: indexedDBMultipleWriteTime.toFixed(2), readTime: indexedDBMultipleReadTime.toFixed(2) }
+      },
+      'OPFS': {
+        ...prevResults['OPFS'],
+        multipleFiles: { writeTime: opfsMultipleWriteTime.toFixed(2), readTime: opfsMultipleReadTime.toFixed(2) }
+      }
+    }));
 
     if (worker) {
       worker.postMessage({ files, singleFileTest: false });
@@ -372,19 +399,25 @@ function App() {
       <table>
         <thead>
           <tr>
-            <th>Storage</th>
-            <th>Test Type</th>
-            <th>Write Time (ms)</th>
-            <th>Read Time (ms)</th>
+            <th rowSpan={2}>Storage</th>
+            <th colSpan={2}>Single 100MB File</th>
+            <th colSpan={2}>100 x 1KB Files (avg)</th>
+          </tr>
+          <tr>
+            <th>Write (ms)</th>
+            <th>Read (ms)</th>
+            <th>Write (ms)</th>
+            <th>Read (ms)</th>
           </tr>
         </thead>
         <tbody>
-          {results.map((result, index) => (
-            <tr key={index}>
-              <td>{result.storage}</td>
-              <td>{result.type}</td>
-              <td>{result.writeTime.toFixed(2)}</td>
-              <td>{result.readTime.toFixed(2)}</td>
+          {['Cache API', 'IndexedDB', 'OPFS', 'OPFS Sync'].map(storage => (
+            <tr key={storage}>
+              <td>{storage}</td>
+              <td>{results[storage]?.singleFile?.writeTime ?? 'N/A'}</td>
+              <td>{results[storage]?.singleFile?.readTime ?? 'N/A'}</td>
+              <td>{results[storage]?.multipleFiles?.writeTime ?? 'N/A'}</td>
+              <td>{results[storage]?.multipleFiles?.readTime ?? 'N/A'}</td>
             </tr>
           ))}
         </tbody>
